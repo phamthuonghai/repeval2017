@@ -1,6 +1,11 @@
 import os
 from argparse import ArgumentParser
 
+log_template = '\t'.join(
+    'Epoch:{:>3.0f},Time:{:>6.0f},Iteration:{:>5.0f},Progress:{:>5.0f}/{:<5.0f},'
+    'Loss:{:>8.6f},Acc:{:0.6f}'.split(','))
+dev_log_template = '\t'.join('--------- Dev/Loss:{:>8.6f},Dev/Acc:{:12.4f} ---------'.split(','))
+
 
 def get_args():
     parser = ArgumentParser(description='PyTorch/torchtext SNLI example')
