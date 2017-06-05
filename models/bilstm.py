@@ -24,15 +24,20 @@ class Encoder(nn.Module):
         self.config = config
         input_size = config.d_proj if config.projection else config.d_embed
         self.rnn = nn.LSTM(input_size=input_size, hidden_size=config.d_hidden,
-                        num_layers=config.n_layers, dropout=config.dp_ratio,
-                        bidirectional=config.birnn)
+                           num_layers=config.n_layers, dropout=config.dp_ratio,
+                           bidirectional=config.birnn)
 
     def forward(self, inputs):
         batch_size = inputs.size()[1]
         state_shape = self.config.n_cells, batch_size, self.config.d_hidden
         h0 = c0 = Variable(inputs.data.new(*state_shape).zero_())
         outputs, (ht, ct) = self.rnn(inputs, (h0, c0))
-        return ht[-1] if not self.config.birnn else ht[-2:].transpose(0, 1).contiguous().view(batch_size, -1)
+        if self.config.lstm_pooling == 'max':
+            return outputs.max(0)[0]
+        elif self.config.lstm_pooling == 'avg':
+            return outputs.sum(0)[0].div(outputs.size(0))
+        else:
+            return ht[-1] if not self.config.birnn else ht[-2:].transpose(0, 1).contiguous().view(batch_size, -1)
 
 
 class TheModel(nn.Module):
