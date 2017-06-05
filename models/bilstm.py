@@ -47,7 +47,11 @@ class TheModel(nn.Module):
         self.config = config
         self.embed = nn.Embedding(config.n_embed, config.d_embed)
         self.projection = Linear(config.d_embed, config.d_proj)
-        self.encoder = Encoder(config)
+        self.prem_encoder = Encoder(config)
+        if config.shared_encoder:
+            self.hypo_encoder = self.prem_encoder
+        else:
+            self.hypo_encoder = Encoder(config)
         self.dropout = nn.Dropout(p=config.dp_ratio)
         self.relu = nn.ReLU()
         seq_in_size = 2*config.d_hidden
@@ -75,7 +79,7 @@ class TheModel(nn.Module):
         if self.config.projection:
             prem_embed = self.relu(self.projection(prem_embed))
             hypo_embed = self.relu(self.projection(hypo_embed))
-        premise = self.encoder(prem_embed)
-        hypothesis = self.encoder(hypo_embed)
+        premise = self.prem_encoder(prem_embed)
+        hypothesis = self.hypo_encoder(hypo_embed)
         scores = self.out(torch.cat([premise, hypothesis], 1))
         return scores
