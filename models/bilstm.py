@@ -33,7 +33,7 @@ class Encoder(nn.Module):
         h0 = c0 = Variable(inputs.data.new(*state_shape).zero_())
         outputs, (ht, ct) = self.rnn(inputs, (h0, c0))
         if self.config.lstm_pooling == 'max':
-            return outputs.max(0)[0]
+            return outputs.max(0)[0][0]
         elif self.config.lstm_pooling == 'avg':
             return outputs.sum(0)[0].div(outputs.size(0))
         else:

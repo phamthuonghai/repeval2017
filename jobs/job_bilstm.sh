@@ -11,16 +11,17 @@
 #
 # Join stdout and stderr
 #$ -j y
-#$ -o ./jobs/log_bilstm.out
+#$ -o ./jobs/log_job_bilstm.log
 #
 # Run job through bash shell
 #$ -S /bin/bash
 #
 
-PYTHON=$(pwd)/venv/bin/python
-source $(pwd)/venv/bin/activate
+PYTHON=/users/ud2017/anaconda2/bin/python
 DATE=$(date +%Y-%m-%d-%H-%M-%S)
 
-${PYTHON} -u ./nli.py --save_path results/bilstm_${DATE} --train_embed
-
-mv ./jobs/log_bilstm.out ./jobs/log_bilstm_${DATE}.out
+${PYTHON} -u ./nli.py --lstm-pooling max --save-path results/bilstm_maxpooling > ./jobs/log_bilstm_maxpooling.out 2>&1 &
+${PYTHON} -u ./nli.py --shared-encoder --save-path results/bilstm_sharedencoder > ./jobs/log_bilstm_sharedencoder.out 2>&1
+${PYTHON} -u ./nli.py --save-path results/bilstm > ./jobs/log_bilstm.out 2>&1 &
+${PYTHON} -u ./nli.py --train-embed --save-path results/bilstm_trainembed > ./jobs/log_bilstm_trainembed.out 2>&1 &
+${PYTHON} -u ./nli.py --lstm-pooling avg --save-path results/bilstm_avgpooling > ./jobs/log_bilstm_avgpooling.out 2>&1

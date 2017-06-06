@@ -9,7 +9,7 @@ dev_log_template = '\t'.join('--------- Dev/Loss:{:>8.6f},Dev/Acc:{:12.4f} -----
 
 def get_args():
     parser = ArgumentParser(description='PyTorch/torchtext SNLI example')
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--epochs', type=int, default=7)
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--dev-every', type=int, default=1000)
     parser.add_argument('--save-every', type=int, default=1000)
@@ -18,7 +18,7 @@ def get_args():
     parser.add_argument('--vector-cache', type=str, default=os.path.join(os.getcwd(), '.vector_cache/input_vectors.pt'))
     parser.add_argument('--word-vectors', type=str, default='glove.840B')
     parser.add_argument('--resume-snapshot', type=str, default='')
-    # parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--gpu', type=int, default=-1)
     parser.add_argument('--log-every', type=int, default=50)
     parser.add_argument('--shared-encoder', action='store_true')
 
