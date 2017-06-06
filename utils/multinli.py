@@ -56,24 +56,45 @@ class MultiNLI(data.ZipDataset, data.TabularDataset):
                 set. Default: 'test.jsonl'.
         """
         # path = cls.download_or_unzip(root)
+        validation_mis = 'dev_mismatched.jsonl'
+        test_mis = 'test_mismatched_unlabeled.jsonl'
+
         path = os.path.join(root, 'data', cls.dirname)
         if parse_field is None:
-            return super(MultiNLI, cls).splits(
+            train_s, val_s, test_s = super(MultiNLI, cls).splits(
                 os.path.join(path, 'multinli_0.9_'), train, validation, test,
                 format='json', fields={'sentence1': ('premise', text_field),
                                        'sentence2': ('hypothesis', text_field),
                                        'gold_label': ('label', label_field)},
                 filter_pred=lambda ex: ex.label != '-')
-        return super(MultiNLI, cls).splits(
-            os.path.join(path, 'multinli_0.9_'), train, validation, test,
-            format='json', fields={'sentence1_binary_parse':
-                                   [('premise', text_field),
-                                    ('premise_transitions', parse_field)],
-                                   'sentence2_binary_parse':
-                                   [('hypothesis', text_field),
-                                    ('hypothesis_transitions', parse_field)],
-                                   'gold_label': ('label', label_field)},
-            filter_pred=lambda ex: ex.label != '-')
+            val_mis_s, test_mis_s = super(MultiNLI, cls).splits(
+                os.path.join(path, 'multinli_0.9_'), None, validation_mis, test_mis,
+                format='json', fields={'sentence1': ('premise', text_field),
+                                       'sentence2': ('hypothesis', text_field),
+                                       'gold_label': ('label', label_field)},
+                filter_pred=lambda ex: ex.label != '-')
+        else:
+            train_s, val_s, test_s = super(MultiNLI, cls).splits(
+                os.path.join(path, 'multinli_0.9_'), train, validation, test,
+                format='json', fields={'sentence1_binary_parse':
+                                       [('premise', text_field),
+                                        ('premise_transitions', parse_field)],
+                                       'sentence2_binary_parse':
+                                       [('hypothesis', text_field),
+                                        ('hypothesis_transitions', parse_field)],
+                                       'gold_label': ('label', label_field)},
+                filter_pred=lambda ex: ex.label != '-')
+            val_mis_s, test_mis_s = super(MultiNLI, cls).splits(
+                os.path.join(path, 'multinli_0.9_'), None, validation_mis, test_mis,
+                format='json', fields={'sentence1_binary_parse':
+                                       [('premise', text_field),
+                                        ('premise_transitions', parse_field)],
+                                       'sentence2_binary_parse':
+                                       [('hypothesis', text_field),
+                                        ('hypothesis_transitions', parse_field)],
+                                       'gold_label': ('label', label_field)},
+                filter_pred=lambda ex: ex.label != '-')
+        return train_s, val_s, val_mis_s, test_s, test_mis_s
 
     @classmethod
     def iters(cls, batch_size=32, device=0, root='.', wv_dir='.',

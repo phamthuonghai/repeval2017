@@ -18,8 +18,9 @@ torch.cuda.set_device(args.gpu)
 def train():
     inputs = data.Field(lower=args.lower)
     answers = data.Field(sequential=False)
-    train_set, dev_matched_set, test_matched_set = multinli.MultiNLI.splits(inputs, answers)
-    inputs.build_vocab(train_set, dev_matched_set, test_matched_set)
+    train_set, dev_matched_set, dev_mis_set, _, _ = multinli.MultiNLI.splits(inputs, answers)
+    inputs.build_vocab(train_set)
+
     if args.word_vectors:
         if os.path.isfile(args.vector_cache):
             inputs.vocab.vectors = torch.load(args.vector_cache)
@@ -28,8 +29,9 @@ def train():
             os.makedirs(os.path.dirname(args.vector_cache))
             torch.save(inputs.vocab.vectors, args.vector_cache)
     answers.build_vocab(train_set)
-    train_iter, dev_matched_iter, test_matched_iter = data.BucketIterator.splits(
-        (train_set, dev_matched_set, test_matched_set), batch_size=args.batch_size, device=args.gpu)
+    train_iter, dev_matched_iter, dev_mis_iter = data.BucketIterator.splits(
+        (train_set, dev_matched_set, dev_mis_set),
+        batch_size=args.batch_size, device=args.gpu)
     config = args
     config.n_embed = len(inputs.vocab)
     config.d_out = len(answers.vocab)
@@ -49,6 +51,7 @@ def train():
     iterations = 0
     start = time.time()
     best_dev_matched_acc = -1
+    best_dev_mis_acc = -1
     train_iter.repeat = False
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
@@ -83,12 +86,23 @@ def train():
 
             if iterations % args.dev_every == 0:
                 dev_matched_acc, dev_matched_loss = model_eval_dev(criterion, dev_matched_iter, dev_matched_set, model)
-                print(dev_log_template.format(dev_matched_loss.data[0], dev_matched_acc))
+                dev_mis_acc, dev_mis_loss = model_eval_dev(criterion, dev_mis_iter, dev_mis_set, model)
+                print(dev_log_template.format(dev_matched_loss.data[0], dev_matched_acc,
+                                              dev_mis_loss.data[0], dev_mis_acc))
                 if dev_matched_acc > best_dev_matched_acc:
                     best_dev_matched_acc = dev_matched_acc
                     snapshot_prefix = os.path.join(args.save_path, 'best_snapshot_matched')
                     snapshot_path = snapshot_prefix + '_devacc_{}_devloss_{}_iter_{}_model.pt'.format(
                         dev_matched_acc, dev_matched_loss.data[0], iterations)
+                    torch.save(model, snapshot_path)
+                    for f in glob.glob(snapshot_prefix + '*'):
+                        if f != snapshot_path:
+                            os.remove(f)
+                if dev_mis_acc > best_dev_mis_acc:
+                    best_dev_mis_acc = dev_mis_acc
+                    snapshot_prefix = os.path.join(args.save_path, 'best_snapshot_mismatched')
+                    snapshot_path = snapshot_prefix + '_devacc_{}_devloss_{}_iter_{}_model.pt'.format(
+                        dev_mis_acc, dev_mis_loss.data[0], iterations)
                     torch.save(model, snapshot_path)
                     for f in glob.glob(snapshot_prefix + '*'):
                         if f != snapshot_path:
