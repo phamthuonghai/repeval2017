@@ -12,7 +12,8 @@ from utils import multinli
 from utils.misc import get_args, dev_log_template, log_template
 
 args = get_args()
-torch.cuda.set_device(args.gpu)
+if args.gpu >= 0:
+    torch.cuda.set_device(args.gpu)
 
 
 def train():
@@ -29,9 +30,12 @@ def train():
             os.makedirs(os.path.dirname(args.vector_cache))
             torch.save(inputs.vocab.vectors, args.vector_cache)
     answers.build_vocab(train_set)
-    train_iter, dev_matched_iter, dev_mis_iter = data.BucketIterator.splits(
-        (train_set, dev_matched_set, dev_mis_set),
-        batch_size=args.batch_size, device=args.gpu)
+    if args.gpu < 0:
+        train_iter, dev_matched_iter, dev_mis_iter = data.BucketIterator.splits(
+            (train_set, dev_matched_set, dev_mis_set), batch_size=args.batch_size)
+    else:
+        train_iter, dev_matched_iter, dev_mis_iter = data.BucketIterator.splits(
+            (train_set, dev_matched_set, dev_mis_set), batch_size=args.batch_size, device=args.gpu)
     config = args
     config.n_embed = len(inputs.vocab)
     config.d_out = len(answers.vocab)
@@ -39,13 +43,14 @@ def train():
     if config.birnn:
         config.n_cells *= 2
     if args.resume_snapshot:
-        model = torch.load(args.resume_snapshot, map_location=lambda storage, location: storage.cuda(args.gpu))
+        model = torch.load(args.resume_snapshot,
+                           map_location=lambda storage, location: storage if args.gpu < 0 else storage.cuda(args.gpu))
     else:
         model = TheModel(config)
         if args.word_vectors:
             model.embed.weight.data = inputs.vocab.vectors
-            if args.gpu >= 0:
-                model.cuda()
+            # if args.gpu >= 0:
+            model.cuda()
     criterion = nn.CrossEntropyLoss()
     opt = optim.Adam(model.parameters(), lr=args.lr)
     iterations = 0
