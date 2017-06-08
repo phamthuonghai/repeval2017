@@ -26,9 +26,7 @@ MyModel = getattr(module, 'MyModel')
 
 # Logging parameter settings at each launch of training script
 # This will help ensure nothing goes awry in reloading a model and we consistenyl use the same hyperparameter settings.
-logger.log("FIXED_PARAMETERS\n %s" % FIXED_PARAMETERS)
-
-######################### LOAD DATA #############################
+logger.log("FIXED_PARAMETERS\n%s" % FIXED_PARAMETERS)
 
 logger.log("Loading data")
 training_snli = load_nli_data(FIXED_PARAMETERS["training_snli"], snli=True)
@@ -62,7 +60,7 @@ if not os.path.isfile(dictpath):
     pickle.dump(word_indices, open(dictpath, "wb"))
 
 else:
-    logger.log("Loading dictionary from %s" % (dictpath))
+    logger.log("Loading dictionary from %s" % dictpath)
     word_indices = pickle.load(open(dictpath, "rb"))
     logger.log("Padding and indexifying sentences")
     sentences_to_padded_index_sequences(word_indices,
@@ -87,7 +85,7 @@ class ModelClassifier:
         self.sequence_length = FIXED_PARAMETERS["seq_length"]
         self.alpha = FIXED_PARAMETERS["alpha"]
 
-        logger.log("Building model from %s.py" % (model))
+        logger.log("Building model from %s.py" % model)
         self.model = MyModel(seq_length=self.sequence_length, emb_dim=self.embedding_dim, hidden_dim=self.dim,
                              embeddings=loaded_embeddings, emb_train=self.emb_train)
 
@@ -138,15 +136,13 @@ class ModelClassifier:
                     self.best_strain_acc, strain_cost = evaluate_classifier(self.classify, train_snli[0:5000],
                                                                             self.batch_size)
                     logger.log(
-                        "Restored best matched-dev acc: %f\n Restored best mismatched-dev acc: %f\n Restored best "
-                        "SNLI-dev acc: %f\n Restored best MulitNLI train acc: %f\n Restored best SNLI train acc: %f" 
-                        % ( 
-                            self.best_dev_mat, best_dev_mismat, best_dev_snli, self.best_mtrain_acc,
-                            self.best_strain_acc))
+                        "Restored best matched-dev acc: %f\nRestored best mismatched-dev acc: %f\nRestored best "
+                        "SNLI-dev acc: %f\nRestored best MulitNLI train acc: %f\nRestored best SNLI train acc: %f" %
+                        (self.best_dev_mat, best_dev_mismat, best_dev_snli, self.best_mtrain_acc, self.best_strain_acc))
                 else:
                     logger.log(
-                        "Restored best matched-dev acc: %f\n Restored best mismatched-dev acc: %f\n Restored best "
-                        "SNLI-dev acc: %f\n Restored best MulitNLI train acc: %f" % ( 
+                        "Restored best matched-dev acc: %f\nRestored best mismatched-dev acc: %f\nRestored best "
+                        "SNLI-dev acc: %f\nRestored best MulitNLI train acc: %f" % ( 
                             self.best_dev_mat, best_dev_mismat, best_dev_snli, self.best_mtrain_acc))
 
             self.saver.restore(self.sess, ckpt_file)
@@ -169,8 +165,8 @@ class ModelClassifier:
             # Loop over all batches in epoch
             for i in range(total_batch):
                 # Assemble a minibatch of the next B examples
-                minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres = self.get_minibatch(
-                    training_data, self.batch_size * i, self.batch_size * (i + 1))
+                minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres = \
+                    self.get_minibatch(training_data, self.batch_size * i, self.batch_size * (i + 1))
 
                 # Run the optimizer to take a gradient step, and also fetch the value of the
                 # cost function for logging
@@ -180,33 +176,36 @@ class ModelClassifier:
                              self.model.keep_rate_ph: self.keep_rate}
                 _, c = self.sess.run([self.optimizer, self.model.total_cost], feed_dict)
 
-                if self.step % self.display_step_freq == 0:
-                    mtrain_acc, mtrain_cost = evaluate_classifier(self.classify, train_mnli[0:500], self.batch_size)
+                # Compute average loss
+                avg_cost += c / (total_batch * self.batch_size)
 
+                if self.step % self.display_step_freq == 0:
+                    logger.log("Epoch %i, step %i\tAvg. train cost: %f" % (
+                        self.epoch, self.step, avg_cost * total_batch / i))
                     # if self.alpha != 0.:
                     #     strain_acc, strain_cost = evaluate_classifier(self.classify, train_snli[0:5000],
                     #                                                   self.batch_size)
                     # dev_acc_snli, dev_cost_snli = evaluate_classifier(self.classify, dev_snli, self.batch_size)
                     #     logger.log(
-                    #         "Step: %i\t Dev-matched acc: %f\t Dev-mismatched acc: %f\t Dev-SNLI acc: %f\t MultiNLI "
-                    #         "train acc: %f\t SNLI train acc: %f" % (
+                    #         "Epoch %i, step %i\tDev-matched acc: %f\tDev-mismatched acc: %f\tDev-SNLI acc: %f\t"
+                    #         "MultiNLI train acc: %f\tSNLI train acc: %f" % (
                     #             self.step, dev_acc_mat, dev_acc_mismat, dev_acc_snli, mtrain_acc, strain_acc))
                     #     logger.log(
-                    #         "Step: %i\t Dev-matched cost: %f\t Dev-mismatched cost: %f\t Dev-SNLI cost: %f\t MultiNLI"
-                    #         "train cost: %f\t SNLI train cost: %f" % (
+                    #         "Epoch %i, step %i\tDev-matched cost: %f\tDev-mismatched cost: %f\tDev-SNLI cost: %f\t"
+                    #         "MultiNLI train cost: %f\tSNLI train cost: %f" % (
                     #             self.step, dev_cost_mat, dev_cost_mismat, dev_cost_snli, mtrain_cost, strain_cost))
                     # else:
-                    logger.log("Step: %i\t MultiNLI train acc: %f\t MultiNLI train cost: %f" % (
-                        self.step, mtrain_acc, mtrain_cost))
 
                 if self.step % 500 == 0:
+                    mtrain_acc, mtrain_cost = evaluate_classifier(self.classify, train_mnli[0:5000], self.batch_size)
                     dev_acc_mat, dev_cost_mat = evaluate_classifier(self.classify, dev_mat, self.batch_size)
                     dev_acc_mismat, dev_cost_mismat = evaluate_classifier(self.classify, dev_mismat, self.batch_size)
 
-                    logger.log(
-                        "Step: %i\t Dev-matched acc: %f\t Dev-mismatched acc: %f\t Dev-matched cost: %f\t "
-                        "Dev-mismatched cost: %f" % (
-                            self.step, dev_acc_mat, dev_acc_mismat, dev_cost_mat, dev_cost_mismat))
+                    logger.log("Epoch %i, step %i\tMultiNLI train acc: %f\tMultiNLI train cost: %f" % (
+                        self.epoch, self.step, mtrain_acc, mtrain_cost))
+                    logger.log("Epoch %i, step %i\tDev-matched acc: %f\tDev-mismatched acc: %f\tDev-matched cost: %f"
+                               "\tDev-mismatched cost: %f" % (self.epoch, self.step, dev_acc_mat,
+                                                              dev_acc_mismat, dev_cost_mat, dev_cost_mismat))
 
                     self.saver.save(self.sess, ckpt_file)
                     best_test = 100 * (1 - self.best_dev_mat / dev_acc_mat)
@@ -217,16 +216,13 @@ class ModelClassifier:
                         # if self.alpha != 0.:
                         #     self.best_strain_acc = strain_acc
                         self.best_step = self.step
-                        logger.log("Checkpointing with new best matched-dev accuracy: %f" % self.best_dev_mat)
+                        logger.log("==== Checkpointing with new best matched-dev accuracy: %f" % self.best_dev_mat)
 
                 self.step += 1
 
-                # Compute average loss
-                avg_cost += c / (total_batch * self.batch_size)
-
             # Display some statistics about the epoch
             if self.epoch % self.display_epoch_freq == 0:
-                logger.log("Epoch: %i\t Avg. Cost: %f" % (self.epoch + 1, avg_cost))
+                logger.log("======= Epoch: %i\tAvg. Cost: %f" % (self.epoch + 1, avg_cost))
 
             self.epoch += 1
             self.last_train_acc[(self.epoch % 5) - 1] = mtrain_acc
@@ -235,8 +231,8 @@ class ModelClassifier:
             progress = 1000 * (sum(self.last_train_acc) / (5 * min(self.last_train_acc)) - 1)
 
             if (progress < 0.1) or (self.step > self.best_step + 30000):
-                logger.log("Best matched-dev accuracy: %s" % (self.best_dev_mat))
-                logger.log("MultiNLI Train accuracy: %s" % (self.best_mtrain_acc))
+                logger.log("Best matched-dev accuracy: %s" % self.best_dev_mat)
+                logger.log("MultiNLI Train accuracy: %s" % self.best_mtrain_acc)
                 self.completed = True
                 break
 
@@ -267,7 +263,7 @@ class ModelClassifier:
         return genres, np.argmax(logits[1:], axis=1), cost
 
     def restore(self, best=True):
-        if True:
+        if best:
             path = os.path.join(FIXED_PARAMETERS["ckpt_path"], modname) + ".ckpt_best"
         else:
             path = os.path.join(FIXED_PARAMETERS["ckpt_path"], modname) + ".ckpt"
