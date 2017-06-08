@@ -2,6 +2,7 @@ import os
 import time
 import glob
 
+import pickle
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -17,31 +18,21 @@ if args.gpu >= 0:
 
 
 def train():
-    inputs = data.Field(lower=args.lower)
-    answers = data.Field(sequential=False)
-    train_set, dev_matched_set, dev_mis_set, _, _ = multinli.MultiNLI.splits(inputs, answers)
-    inputs.build_vocab(train_set)
-
-    if args.word_vectors:
-        if os.path.isfile(args.vector_cache):
-            inputs.vocab.vectors = torch.load(args.vector_cache)
-        else:
-            inputs.vocab.load_vectors(wv_dir=args.data_cache, wv_type=args.word_vectors, wv_dim=args.d_embed)
-            os.makedirs(os.path.dirname(args.vector_cache))
-            torch.save(inputs.vocab.vectors, args.vector_cache)
-    answers.build_vocab(train_set)
+    answers, dev_matched_set, dev_mis_set, inputs, train_set, _, _ = get_data()
     if args.gpu < 0:
         train_iter, dev_matched_iter, dev_mis_iter = data.BucketIterator.splits(
             (train_set, dev_matched_set, dev_mis_set), batch_size=args.batch_size)
     else:
         train_iter, dev_matched_iter, dev_mis_iter = data.BucketIterator.splits(
             (train_set, dev_matched_set, dev_mis_set), batch_size=args.batch_size, device=args.gpu)
+
     config = args
     config.n_embed = len(inputs.vocab)
     config.d_out = len(answers.vocab)
     config.n_cells = config.n_layers
     if config.birnn:
         config.n_cells *= 2
+
     if args.resume_snapshot:
         model = torch.load(args.resume_snapshot,
                            map_location=lambda storage, location: storage if args.gpu < 0 else storage.cuda(args.gpu))
@@ -51,15 +42,15 @@ def train():
             model.embed.weight.data = inputs.vocab.vectors
             # if args.gpu >= 0:
             model.cuda()
+    if not os.path.exists(args.save_path):
+        os.makedirs(args.save_path)
+
     criterion = nn.CrossEntropyLoss()
     opt = optim.Adam(model.parameters(), lr=args.lr)
     iterations = 0
     start = time.time()
-    best_dev_matched_acc = -1
-    best_dev_mis_acc = -1
+    best_dev_matched_acc, best_dev_mis_acc = -1, -1
     train_iter.repeat = False
-    if not os.path.exists(args.save_path):
-        os.makedirs(args.save_path)
 
     for epoch in range(args.epochs):
         train_iter.init_epoch()
@@ -114,16 +105,43 @@ def train():
                             os.remove(f)
 
 
-def model_eval_dev(criterion, dev_matched_iter, dev_matched_set, model):
+def get_data():
+    data_cache_file = os.path.join(args.data_cache, 'data.pkl')
+    if os.path.exists(data_cache_file):
+        with open(data_cache_file, 'rb') as f:
+            answers, dev_matched_set, dev_mis_set, inputs, train_set, test_matched_set, test_mis_set = pickle.load(f)
+    else:
+        inputs = data.Field(lower=args.lower)
+        answers = data.Field(sequential=False)
+        train_set, dev_matched_set, dev_mis_set, test_matched_set, test_mis_set = multinli.MultiNLI.splits(inputs,
+                                                                                                           answers)
+        inputs.build_vocab(train_set)
+        if args.word_vectors:
+            if os.path.isfile(args.vector_cache):
+                inputs.vocab.vectors = torch.load(args.vector_cache)
+            else:
+                inputs.vocab.load_vectors(wv_dir=args.data_cache, wv_type=args.word_vectors, wv_dim=args.d_embed)
+                if not os.path.exists(args.vector_cache):
+                    os.makedirs(os.path.dirname(args.vector_cache))
+                torch.save(inputs.vocab.vectors, args.vector_cache)
+        answers.build_vocab(train_set)
+
+        with open(data_cache_file, 'wb') as f:
+            pickle.dump((answers, dev_matched_set, dev_mis_set, inputs, train_set, test_matched_set, test_mis_set), f)
+
+    return answers, dev_matched_set, dev_mis_set, inputs, train_set, test_matched_set, test_mis_set
+
+
+def model_eval_dev(criterion, dev_iter, dev_set, model):
     model.eval()
-    dev_matched_iter.init_epoch()
+    dev_iter.init_epoch()
     n_dev_correct, dev_loss = 0, 0
-    for dev_batch_idx, dev_batch in enumerate(dev_matched_iter):
+    for dev_batch_idx, dev_batch in enumerate(dev_iter):
         answer = model(dev_batch)
         n_dev_correct += (
             torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum()
         dev_loss = criterion(answer, dev_batch.label)
-    dev_acc = 100. * n_dev_correct / len(dev_matched_set)
+    dev_acc = 100. * n_dev_correct / len(dev_set)
     return dev_acc, dev_loss
 
 
