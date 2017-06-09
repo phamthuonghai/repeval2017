@@ -42,7 +42,7 @@ parser.add_argument('--logpath', type=str, default='./logs')
 
 parser.add_argument('--emb_to_load', type=int, default=None,
                     help='Number of embeddings to load. If None, all embeddings are loaded.')
-parser.add_argument('--learning_rate', type=float, default=0.0004, help='Learning rate for model')
+parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for model')
 parser.add_argument('--keep_rate', type=float, default=0.5, help='Keep rate for dropout in the model')
 parser.add_argument('--seq_length', type=int, default=50, help='Max sequence length')
 parser.add_argument('--emb_train', action='store_true', help='Call if you want to make your word embeddings trainable.')
@@ -51,6 +51,8 @@ parser.add_argument('--genre', type=str, help='Which genre to train on')
 parser.add_argument('--alpha', type=float, default=0.15, help='What percentage of SNLI data to use in training')
 
 parser.add_argument('--test', action='store_true', help='Call if you want to only test on the best checkpoint.')
+parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
+parser.add_argument('--pooling', type=str, default='avg')
 
 args = parser.parse_args()
 
@@ -90,11 +92,12 @@ def load_parameters():
         'hidden_embedding_dim': 300,
         'seq_length': args.seq_length,
         'keep_rate': args.keep_rate, 
-        'batch_size': 32,
+        'batch_size': args.batch_size,
         'learning_rate': args.learning_rate,
         'emb_train': args.emb_train,
         'alpha': args.alpha,
-        'genre': args.genre
+        'genre': args.genre,
+        'pooling': args.pooling
     }
 
 

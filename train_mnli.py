@@ -84,10 +84,11 @@ class ModelClassifier:
         self.keep_rate = FIXED_PARAMETERS["keep_rate"]
         self.sequence_length = FIXED_PARAMETERS["seq_length"]
         self.alpha = FIXED_PARAMETERS["alpha"]
+        self.pooling = FIXED_PARAMETERS["pooling"]
 
         logger.log("Building model from %s.py" % model)
         self.model = MyModel(seq_length=self.sequence_length, emb_dim=self.embedding_dim, hidden_dim=self.dim,
-                             embeddings=loaded_embeddings, emb_train=self.emb_train)
+                             embeddings=loaded_embeddings, emb_train=self.emb_train, pooling=self.pooling)
 
         # Perform gradient descent with Adam
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate, beta1=0.9, beta2=0.999).minimize(

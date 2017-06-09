@@ -26,9 +26,6 @@ MyModel = getattr(module, 'MyModel')
 # This will help ensure nothing goes awry in reloading a model and we consistenyl use the same hyperparameter settings. 
 logger.log("FIXED_PARAMETERS\n %s" % FIXED_PARAMETERS)
 
-
-######################### LOAD DATA #############################
-
 logger.log("Loading data")
 training_snli = load_nli_data(FIXED_PARAMETERS["training_snli"], snli=True)
 dev_snli = load_nli_data(FIXED_PARAMETERS["dev_snli"], snli=True)
@@ -47,17 +44,19 @@ if not os.path.isfile(dictpath):
     exit(1)
 
 else:
-    logger.log("Loading dictionary from %s" % (dictpath))
+    logger.log("Loading dictionary from %s" % dictpath)
     word_indices = pickle.load(open(dictpath, "rb"))
     logger.log("Padding and indexifying sentences")
-    sentences_to_padded_index_sequences(word_indices, [training_mnli, training_snli, dev_matched, dev_mismatched, dev_snli, test_snli, test_matched, test_mismatched])
+    sentences_to_padded_index_sequences(word_indices, [training_mnli, training_snli, dev_matched, dev_mismatched,
+                                                       dev_snli, test_snli, test_matched, test_mismatched])
 
 loaded_embeddings = load_embedding_rand(FIXED_PARAMETERS["embedding_data_path"], word_indices)
 
-class modelClassifier:
+
+class ModelClassifier:
     def __init__(self, seq_length):
-        ## Define hyperparameters
-        self.learning_rate =  FIXED_PARAMETERS["learning_rate"]
+        # Define hyperparameters
+        self.learning_rate = FIXED_PARAMETERS["learning_rate"]
         self.display_epoch_freq = 1
         self.display_step_freq = 50
         self.embedding_dim = FIXED_PARAMETERS["word_embedding_dim"]
@@ -67,15 +66,18 @@ class modelClassifier:
         self.keep_rate = FIXED_PARAMETERS["keep_rate"]
         self.sequence_length = FIXED_PARAMETERS["seq_length"] 
         self.alpha = FIXED_PARAMETERS["alpha"]
+        self.pooling = FIXED_PARAMETERS["pooling"]
 
-        logger.Log("Building model from %s.py" %(model))
-        self.model = MyModel(seq_length=self.sequence_length, emb_dim=self.embedding_dim,  hidden_dim=self.dim, embeddings=loaded_embeddings, emb_train=self.emb_train)
+        logger.log("Building model from %s.py" % model)
+        self.model = MyModel(seq_length=self.sequence_length, emb_dim=self.embedding_dim,  hidden_dim=self.dim,
+                             embeddings=loaded_embeddings, emb_train=self.emb_train, pooling=self.pooling)
 
         # Perform gradient descent with Adam
-        self.optimizer = tf.train.AdamOptimizer(self.learning_rate, beta1=0.9, beta2=0.999).minimize(self.model.total_cost)
+        self.optimizer = tf.train.AdamOptimizer(self.learning_rate, beta1=0.9, beta2=0.999).minimize(
+            self.model.total_cost)
 
         # tf things: initialize variables and create placeholder for session
-        logger.Log("Initializing variables")
+        logger.log("Initializing variables")
         self.init = tf.global_variables_initializer()
         self.sess = None
         self.saver = tf.train.Saver()
@@ -93,20 +95,21 @@ class modelClassifier:
         self.sess = tf.Session()
         self.sess.run(self.init)
         self.saver.restore(self.sess, best_path)
-        logger.Log("Model restored from file: %s" % best_path)
+        logger.log("Model restored from file: %s" % best_path)
 
         logits = np.empty(3)
-        minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels = self.get_minibatch(examples, 0, len(examples))
-        feed_dict = {self.model.premise_x: minibatch_premise_vectors, 
-                            self.model.hypothesis_x: minibatch_hypothesis_vectors, 
-                            self.model.keep_rate_ph: 1.0}
+        minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels = \
+            self.get_minibatch(examples, 0, len(examples))
+        feed_dict = {self.model.premise_x: minibatch_premise_vectors,
+                     self.model.hypothesis_x: minibatch_hypothesis_vectors,
+                     self.model.keep_rate_ph: 1.0}
         logit = self.sess.run(self.model.logits, feed_dict)
         logits = np.vstack([logits, logit])
 
         return np.argmax(logits[1:], axis=1)
 
 
-classifier = modelClassifier(FIXED_PARAMETERS["seq_length"])
+classifier = ModelClassifier(FIXED_PARAMETERS["seq_length"])
 
 """
 Get CSVs of predictions.
@@ -117,4 +120,3 @@ predictions_kaggle(classifier.classify, test_matched, FIXED_PARAMETERS["batch_si
 
 logger.log("Creating CSV of predicitons on mismatched test set: %s" % (modname + "_mismatched_predictions.csv"))
 predictions_kaggle(classifier.classify, test_mismatched, FIXED_PARAMETERS["batch_size"], modname+"_dev_mismatched")
-
