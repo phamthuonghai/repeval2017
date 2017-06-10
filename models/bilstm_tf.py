@@ -39,7 +39,11 @@ class MyModel(object):
         hypothesis_in = emb_drop(self.hypothesis_x)
 
         premise_outs, c1 = blocks.biLSTM(premise_in, dim=self.dim, seq_len=prem_seq_lengths, name='premise')
-        hypothesis_outs, c2 = blocks.biLSTM(hypothesis_in, dim=self.dim, seq_len=hyp_seq_lengths, name='hypothesis')
+        if kwargs['shared_encoder']:
+            hypothesis_outs, c2 = blocks.biLSTM(hypothesis_in, dim=self.dim, seq_len=hyp_seq_lengths,
+                                                name='premise', reuse=True)
+        else:
+            hypothesis_outs, c2 = blocks.biLSTM(hypothesis_in, dim=self.dim, seq_len=hyp_seq_lengths, name='hypothesis')
 
         premise_bi = tf.concat(premise_outs, axis=2)
         hypothesis_bi = tf.concat(hypothesis_outs, axis=2)
