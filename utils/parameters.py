@@ -13,7 +13,7 @@ import io
 import os
 
 parser = argparse.ArgumentParser()
-models = ['esim', 'cbow', 'bilstm_tf', 'lstm']
+models = ['bilstm_tf', 'selfattentive']
 
 
 def types(s):
@@ -53,6 +53,11 @@ parser.add_argument('--alpha', type=float, default=0.15, help='What percentage o
 parser.add_argument('--test', action='store_true', help='Call if you want to only test on the best checkpoint.')
 parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
 parser.add_argument('--pooling', type=str, default='avg')
+
+
+parser.add_argument('--s1_dim', type=int, default=150, help='s1 dim')
+parser.add_argument('--s2_dim', type=int, default=30, help='aka r')
+parser.add_argument('--penal_coef', type=float, default=0.3, help='penalization coefficient')
 
 args = parser.parse_args()
 
@@ -97,7 +102,10 @@ def load_parameters():
         'emb_train': args.emb_train,
         'alpha': args.alpha,
         'genre': args.genre,
-        'pooling': args.pooling
+        'pooling': args.pooling,
+        's1_dim': args.s1_dim,
+        's2_dim': args.s2_dim,
+        'penal_coef': args.penal_coef
     }
 
 

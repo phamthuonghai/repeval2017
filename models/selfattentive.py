@@ -18,7 +18,7 @@ class MyModel(object):
         # Define parameters
         self.E = tf.Variable(kwargs['embeddings'], trainable=kwargs['emb_train'])
 
-        self.W_mlp = tf.Variable(tf.random_normal([self.dim * 8, self.dim], stddev=0.1))
+        self.W_mlp = tf.Variable(tf.random_normal([self.dim * 8 * kwargs['s2_dim'], self.dim], stddev=0.1))
         self.b_mlp = tf.Variable(tf.random_normal([self.dim], stddev=0.1))
 
         self.W_cl = tf.Variable(tf.random_normal([self.dim, 3], stddev=0.1))
@@ -47,16 +47,11 @@ class MyModel(object):
         # premise_final = blocks.last_output(premise_bi, prem_seq_lengths)
         # hypothesis_final =  blocks.last_output(hypothesis_bi, hyp_seq_lengths)
 
-        if kwargs['pooling'] == 'max':
-            premise_ave = tf.reduce_max(premise_bi, 1)
-            hypothesis_ave = tf.reduce_max(hypothesis_bi, 1)
-        else:
-            # Mean pooling
-            premise_sum = tf.reduce_sum(premise_bi, 1)
-            premise_ave = tf.div(premise_sum, tf.expand_dims(tf.cast(prem_seq_lengths, tf.float32), -1))
-
-            hypothesis_sum = tf.reduce_sum(hypothesis_bi, 1)
-            hypothesis_ave = tf.div(hypothesis_sum, tf.expand_dims(tf.cast(hyp_seq_lengths, tf.float32), -1))
+        # Attention Block
+        premise_ave, penal1 = blocks.self_attention(premise_bi, kwargs['s1_dim'], kwargs['s2_dim'],
+                                                    kwargs['batch_size'], 'prem_att')
+        hypothesis_ave, penal2 = blocks.self_attention(hypothesis_bi, kwargs['s1_dim'], kwargs['s2_dim'],
+                                                       kwargs['batch_size'], 'hypo_att')
 
         # Mou et al. concat layer ###
         diff = tf.subtract(premise_ave, hypothesis_ave)
@@ -73,4 +68,5 @@ class MyModel(object):
 
         # Define the cost function
         self.total_cost = tf.reduce_mean(
-            tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
+            tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits)) +\
+                          (penal1 + penal2) * 0.5 * kwargs['penal_coef']

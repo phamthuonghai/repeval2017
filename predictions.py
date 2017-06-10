@@ -54,23 +54,18 @@ loaded_embeddings = load_embedding_rand(FIXED_PARAMETERS["embedding_data_path"],
 
 
 class ModelClassifier:
-    def __init__(self, seq_length):
+    def __init__(self):
         # Define hyperparameters
         self.learning_rate = FIXED_PARAMETERS["learning_rate"]
         self.display_epoch_freq = 1
         self.display_step_freq = 50
-        self.embedding_dim = FIXED_PARAMETERS["word_embedding_dim"]
-        self.dim = FIXED_PARAMETERS["hidden_embedding_dim"]
         self.batch_size = FIXED_PARAMETERS["batch_size"]
-        self.emb_train = FIXED_PARAMETERS["emb_train"]
         self.keep_rate = FIXED_PARAMETERS["keep_rate"]
-        self.sequence_length = FIXED_PARAMETERS["seq_length"] 
         self.alpha = FIXED_PARAMETERS["alpha"]
-        self.pooling = FIXED_PARAMETERS["pooling"]
+        FIXED_PARAMETERS['embeddings'] = loaded_embeddings
 
         logger.log("Building model from %s.py" % model)
-        self.model = MyModel(seq_length=self.sequence_length, emb_dim=self.embedding_dim,  hidden_dim=self.dim,
-                             embeddings=loaded_embeddings, emb_train=self.emb_train, pooling=self.pooling)
+        self.model = MyModel(**FIXED_PARAMETERS)
 
         # Perform gradient descent with Adam
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate, beta1=0.9, beta2=0.999).minimize(
@@ -109,7 +104,7 @@ class ModelClassifier:
         return np.argmax(logits[1:], axis=1)
 
 
-classifier = ModelClassifier(FIXED_PARAMETERS["seq_length"])
+classifier = ModelClassifier()
 
 """
 Get CSVs of predictions.
