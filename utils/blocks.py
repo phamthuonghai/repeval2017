@@ -24,22 +24,21 @@ def length(sequence):
     return length, mask
 
 
-def biLSTM(inputs, dim, seq_len, name):
+def biLSTM(inputs, dim, seq_len, name, reuse=False):
     """
     A Bi-Directional LSTM layer. Returns forward and backward hidden states as a tuple, and cell states as a tuple.
 
     Ouput of hidden states: [(batch_size, max_seq_length, hidden_dim), (batch_size, max_seq_length, hidden_dim)]
     Same shape for cell states.
     """
-    with tf.name_scope(name):
-        with tf.variable_scope('forward' + name):
+    with tf.variable_scope(name, reuse=reuse):
+        with tf.variable_scope('forward' + name, reuse=reuse):
             lstm_fwd = tf.contrib.rnn.LSTMCell(num_units=dim)
-        with tf.variable_scope('backward' + name):
+        with tf.variable_scope('backward' + name, reuse=reuse):
             lstm_bwd = tf.contrib.rnn.LSTMCell(num_units=dim)
 
         hidden_states, cell_states = tf.nn.bidirectional_dynamic_rnn(cell_fw=lstm_fwd, cell_bw=lstm_bwd, inputs=inputs,
-                                                                     sequence_length=seq_len, dtype=tf.float32,
-                                                                     scope=name)
+                                                                     sequence_length=seq_len, dtype=tf.float32)
 
     return hidden_states, cell_states
 
@@ -86,7 +85,7 @@ def masked_softmax(scores, mask):
     return weights
 
 
-def self_attention(inputs, s1_dim, s2_dim, batch_size, name):
+def self_attention(inputs, s1_dim, s2_dim, batch_size, name, reuse=False):
     """
     A self-attentive block as described in https://arxiv.org/pdf/1703.03130.pdf
 
@@ -94,7 +93,7 @@ def self_attention(inputs, s1_dim, s2_dim, batch_size, name):
     Output shape of m: (s2_dim, 2*hidden_dim).
     penal: a real number
     """
-    with tf.name_scope(name):
+    with tf.variable_scope(name, reuse=reuse):
         s1 = tf.layers.dense(inputs, s1_dim, activation=tf.nn.tanh, name=name+'_s1')  # (?, max_seq_length, s1_dim)
         a = tf.layers.dense(s1, s2_dim, activation=tf.nn.softmax, name=name+'_s2')  # (?, max_seq_length, s2_dim)
         at = tf.transpose(a, perm=[0, 2, 1])

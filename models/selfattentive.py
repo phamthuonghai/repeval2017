@@ -39,7 +39,11 @@ class MyModel(object):
         hypothesis_in = emb_drop(self.hypothesis_x)
 
         premise_outs, c1 = blocks.biLSTM(premise_in, dim=self.dim, seq_len=prem_seq_lengths, name='premise')
-        hypothesis_outs, c2 = blocks.biLSTM(hypothesis_in, dim=self.dim, seq_len=hyp_seq_lengths, name='hypothesis')
+        if kwargs['shared_encoder']:
+            hypothesis_outs, c2 = blocks.biLSTM(hypothesis_in, dim=self.dim, seq_len=hyp_seq_lengths,
+                                                name='premise', reuse=True)
+        else:
+            hypothesis_outs, c2 = blocks.biLSTM(hypothesis_in, dim=self.dim, seq_len=hyp_seq_lengths, name='hypothesis')
 
         premise_bi = tf.concat(premise_outs, axis=2)
         hypothesis_bi = tf.concat(hypothesis_outs, axis=2)
@@ -50,8 +54,13 @@ class MyModel(object):
         # Attention Block
         premise_ave, penal1 = blocks.self_attention(premise_bi, kwargs['s1_dim'], kwargs['s2_dim'],
                                                     kwargs['batch_size'], 'prem_att')
-        hypothesis_ave, penal2 = blocks.self_attention(hypothesis_bi, kwargs['s1_dim'], kwargs['s2_dim'],
-                                                       kwargs['batch_size'], 'hypo_att')
+
+        if kwargs['shared_encoder']:
+            hypothesis_ave, penal2 = blocks.self_attention(hypothesis_bi, kwargs['s1_dim'], kwargs['s2_dim'],
+                                                           kwargs['batch_size'], 'prem_att', reuse=True)
+        else:
+            hypothesis_ave, penal2 = blocks.self_attention(hypothesis_bi, kwargs['s1_dim'], kwargs['s2_dim'],
+                                                           kwargs['batch_size'], 'hypo_att')
 
         # Mou et al. concat layer ###
         diff = tf.subtract(premise_ave, hypothesis_ave)
