@@ -13,7 +13,7 @@ import io
 import os
 
 parser = argparse.ArgumentParser()
-models = ['bilstm_tf', 'selfattentive', 'dep_avg']
+models = ['bilstm_tf', 'selfattentive', 'dep_avg', 'bilstm_dep_avg']
 pooling_types = ['max', 'avg']
 
 

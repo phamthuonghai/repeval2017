@@ -8,17 +8,21 @@ class MyModel(object):
         self.embedding_dim = kwargs['word_embedding_dim']
         self.dim = kwargs['hidden_embedding_dim']
         self.sequence_length = kwargs['seq_length']
+        self.batch_size = kwargs['batch_size']
+        self.r = kwargs['s2_dim']
 
         # Define the placeholders
         self.premise_x = tf.placeholder(tf.int32, [None, self.sequence_length])
         self.hypothesis_x = tf.placeholder(tf.int32, [None, self.sequence_length])
         self.y = tf.placeholder(tf.int32, [None])
         self.keep_rate_ph = tf.placeholder(tf.float32, [])
+        self.prem_dep = tf.placeholder(tf.float32, [None, self.r, self.sequence_length])
+        self.hypo_dep = tf.placeholder(tf.float32, [None, self.r, self.sequence_length])
 
         # Define parameters
         self.E = tf.Variable(kwargs['embeddings'], trainable=kwargs['emb_train'])
 
-        self.W_mlp = tf.Variable(tf.random_normal([4 * 2 * self.dim, self.dim], stddev=0.1))
+        self.W_mlp = tf.Variable(tf.random_normal([self.dim * 8 * (self.r+1), self.dim], stddev=0.1))
         self.b_mlp = tf.Variable(tf.random_normal([self.dim], stddev=0.1))
 
         self.W_cl = tf.Variable(tf.random_normal([self.dim, 3], stddev=0.1))
@@ -48,9 +52,6 @@ class MyModel(object):
         premise_bi = tf.concat(premise_outs, axis=2)
         hypothesis_bi = tf.concat(hypothesis_outs, axis=2)
 
-        # premise_final = blocks.last_output(premise_bi, prem_seq_lengths)
-        # hypothesis_final =  blocks.last_output(hypothesis_bi, hyp_seq_lengths)
-
         if kwargs['pooling'] == 'max':
             premise_ave = tf.reduce_max(premise_bi, 1)
             hypothesis_ave = tf.reduce_max(hypothesis_bi, 1)
@@ -61,6 +62,12 @@ class MyModel(object):
 
             hypothesis_sum = tf.reduce_sum(hypothesis_bi, 1)
             hypothesis_ave = tf.div(hypothesis_sum, tf.expand_dims(tf.cast(hyp_seq_lengths, tf.float32), -1))
+
+        premise_dep = blocks.dep_attention(premise_bi, self.prem_dep, batch_size=self.batch_size)
+        hypothesis_dep = blocks.dep_attention(hypothesis_bi, self.hypo_dep, batch_size=self.batch_size)
+
+        premise_ave = tf.concat([premise_ave, premise_dep], 1)
+        hypothesis_ave = tf.concat([hypothesis_ave, hypothesis_dep], 1)
 
         # Mou et al. concat layer ###
         diff = tf.subtract(premise_ave, hypothesis_ave)

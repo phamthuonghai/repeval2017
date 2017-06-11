@@ -5,8 +5,9 @@ import os
 import random
 import json
 import collections
+from multiprocessing import Pool
 
-from tqdm import tqdm
+import time
 from ufal.udpipe import Model, Pipeline, ProcessingError
 
 import parameters as params
@@ -36,7 +37,7 @@ def process_dep(data, seq_length, r):
         if len(waiting) <= 0:
             break
         cur = waiting.popleft()
-        cur_cluster = [word[ID] for word in parsed_table if word[HEAD] == cur and word[UPOSTAG] in FIRST_CLASS_POS]
+        cur_cluster = [word[ID] for word in parsed_table if word[HEAD] == cur]
         waiting.extend(cur_cluster)
 
         cur_cluster.append(cur)
@@ -52,42 +53,54 @@ def process_dep(data, seq_length, r):
     return ret
 
 
+def process_line(line):
+    loaded_example = json.loads(line)
+    if loaded_example['gold_label'] not in LABEL_MAP:
+        return None
+    loaded_example['label'] = LABEL_MAP[loaded_example['gold_label']]
+    if is_snli:
+        loaded_example['genre'] = 'snli'
+
+    if pipeline:
+        processed = pipeline.process(loaded_example['sentence1'], error)
+        if error.message != '':
+            return None
+        loaded_example['prem_dep'] = process_dep(processed, pr_seq_length, pr_r)
+        processed = pipeline.process(loaded_example['sentence2'], error)
+        if error.message != '':
+            return None
+        loaded_example['hypo_dep'] = process_dep(processed, pr_seq_length, pr_r)
+
+    return loaded_example
+
+
 def load_nli_data(path, snli=False, udpipe_path=None, seq_length=50, r=10, cache_file=''):
     """
     Load MultiNLI or SNLI data.
     If the 'snli' parameter is set to True, a genre label of snli will be assigned to the data. 
     """
+    global is_snli, pipeline, error, pr_seq_length, pr_r
+    is_snli = snli
+    pr_r = r
+    pr_seq_length = seq_length
+    print(path)
     if os.path.exists(cache_file):
         with open(cache_file, 'rb') as f:
-            data = pickle.load(f)
+            data = [w for w in pickle.load(f) if w is not None]
     else:
-        data = []
-
         if udpipe_path:
             model = Model.load(udpipe_path)
             pipeline = Pipeline(model, 'horizontal', Pipeline.DEFAULT, Pipeline.DEFAULT, 'conllu')
             error = ProcessingError()
 
         with open(path) as f:
-            for line in tqdm(f):
-                loaded_example = json.loads(line)
-                if loaded_example['gold_label'] not in LABEL_MAP:
-                    continue
-                loaded_example['label'] = LABEL_MAP[loaded_example['gold_label']]
-                if snli:
-                    loaded_example['genre'] = 'snli'
-
-                if udpipe_path:
-                    processed = pipeline.process(loaded_example['sentence1'], error)
-                    if error.message != '':
-                        continue
-                    loaded_example['prem_dep'] = process_dep(processed, seq_length, r)
-                    processed = pipeline.process(loaded_example['sentence2'], error)
-                    if error.message != '':
-                        continue
-                    loaded_example['hypo_dep'] = process_dep(processed, seq_length, r)
-
-                data.append(loaded_example)
+            pool = Pool(32)
+            data = pool.map_async(process_line, list(f), chunksize=1)
+            while not data.ready():
+                print('{} lines left'.format(data._number_left))
+                time.sleep(10)
+            data = [w for w in data.get() if w is not None]
+            pool.close()
             random.seed(1)
             random.shuffle(data)
 

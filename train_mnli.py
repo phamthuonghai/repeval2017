@@ -199,7 +199,7 @@ class ModelClassifier:
                              self.model.y: minibatch_labels,
                              self.model.keep_rate_ph: self.keep_rate}
 
-                if self.model_type == 'dep_avg':
+                if 'dep_avg' in self.model_type:
                     feed_dict[self.model.prem_dep] = minibatch_prem_dep
                     feed_dict[self.model.hypo_dep] = minibatch_hypo_dep
 
@@ -286,7 +286,7 @@ class ModelClassifier:
                          self.model.hypothesis_x: minibatch_hypothesis_vectors,
                          self.model.y: minibatch_labels,
                          self.model.keep_rate_ph: 1.0}
-            if self.model_type == 'dep_avg':
+            if 'dep_avg' in self.model_type:
                 feed_dict[self.model.prem_dep] = minibatch_prem_dep
                 feed_dict[self.model.hypo_dep] = minibatch_hypo_dep
             genres += minibatch_genres
