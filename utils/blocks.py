@@ -101,3 +101,15 @@ def self_attention(inputs, s1_dim, s2_dim, batch_size, name, reuse=False):
         penal = tf.norm(tf.subtract(tf.matmul(at, a), tf.eye(s2_dim, batch_shape=[batch_size])), ord='fro', axis=(1, 2))
         penal = tf.reduce_mean(tf.square(penal))
     return tf.reshape(m, [batch_size, -1]), penal
+
+
+def dep_attention(inputs, dep, batch_size):
+    """
+    Manual dependency attention
+
+    Input shape: (batch_size, max_seq_length, 2*hidden_dim)
+    Dep shape: (batch_size, r, max_seq_length)
+    Output shape: (batch_size, 2*r*hidden_dim)
+    """
+    tmp = tf.matmul(dep, inputs)
+    return tf.reshape(tmp, [batch_size, -1])

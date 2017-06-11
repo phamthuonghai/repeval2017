@@ -29,15 +29,31 @@ MyModel = getattr(module, 'MyModel')
 logger.log("FIXED_PARAMETERS\n%s" % FIXED_PARAMETERS)
 
 logger.log("Loading data")
-training_snli = load_nli_data(FIXED_PARAMETERS["training_snli"], snli=True)
-dev_snli = load_nli_data(FIXED_PARAMETERS["dev_snli"], snli=True)
-test_snli = load_nli_data(FIXED_PARAMETERS["test_snli"], snli=True)
+training_snli = load_nli_data(FIXED_PARAMETERS["training_snli"], snli=True, udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                              seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                              cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.training_snli.cache')
+dev_snli = load_nli_data(FIXED_PARAMETERS["dev_snli"], snli=True, udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                         seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                         cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.dev_snli.cache')
+test_snli = load_nli_data(FIXED_PARAMETERS["test_snli"], snli=True, udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                          seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                          cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.test_snli.cache')
 
-training_mnli = load_nli_data(FIXED_PARAMETERS["training_mnli"])
-dev_matched = load_nli_data(FIXED_PARAMETERS["dev_matched"])
-dev_mismatched = load_nli_data(FIXED_PARAMETERS["dev_mismatched"])
-test_matched = load_nli_data(FIXED_PARAMETERS["test_matched"])
-test_mismatched = load_nli_data(FIXED_PARAMETERS["test_mismatched"])
+training_mnli = load_nli_data(FIXED_PARAMETERS["training_mnli"], udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                              seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                              cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.training_mnli.cache')
+dev_matched = load_nli_data(FIXED_PARAMETERS["dev_matched"], udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                            seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                            cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.dev_matched.cache')
+dev_mismatched = load_nli_data(FIXED_PARAMETERS["dev_mismatched"], udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                               seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                               cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.dev_mismatched.cache')
+test_matched = load_nli_data(FIXED_PARAMETERS["test_matched"], udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                             seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                             cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.test_matched.cache')
+test_mismatched = load_nli_data(FIXED_PARAMETERS["test_mismatched"], udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                                seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                                cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.test_mismatched.cache')
 
 if 'temp.jsonl' in FIXED_PARAMETERS["test_matched"]:
     # Removing temporary empty file that was created in parameters.py
@@ -74,12 +90,15 @@ loaded_embeddings = load_embedding_rand(FIXED_PARAMETERS["embedding_data_path"],
 class ModelClassifier:
     def __init__(self):
         # Define hyperparameters
+        self.model_type = FIXED_PARAMETERS["model_type"]
         self.learning_rate = FIXED_PARAMETERS["learning_rate"]
         self.display_epoch_freq = 1
         self.display_step_freq = 50
         self.batch_size = FIXED_PARAMETERS["batch_size"]
         self.keep_rate = FIXED_PARAMETERS["keep_rate"]
         self.alpha = FIXED_PARAMETERS["alpha"]
+        self.seq_length = FIXED_PARAMETERS['seq_length']
+        self.udpipe_path = FIXED_PARAMETERS['udpipe_path']
         FIXED_PARAMETERS['embeddings'] = loaded_embeddings
 
         logger.log("Building model from %s.py" % model)
@@ -98,14 +117,21 @@ class ModelClassifier:
         self.sess = None
         self.saver = tf.train.Saver()
 
-    @staticmethod
-    def get_minibatch(dataset, start_index, end_index):
+    def get_minibatch(self, dataset, start_index, end_index):
         indices = range(start_index, end_index)
         premise_vectors = np.vstack([dataset[i]['sentence1_binary_parse_index_sequence'] for i in indices])
         hypothesis_vectors = np.vstack([dataset[i]['sentence2_binary_parse_index_sequence'] for i in indices])
         genres = [dataset[i]['genre'] for i in indices]
         labels = [dataset[i]['label'] for i in indices]
-        return premise_vectors, hypothesis_vectors, labels, genres
+
+        prem_dep = None
+        hypo_dep = None
+
+        if self.udpipe_path:
+            prem_dep = np.stack([dataset[i]['prem_dep'] for i in indices])
+            hypo_dep = np.stack([dataset[i]['hypo_dep'] for i in indices])
+
+        return premise_vectors, hypothesis_vectors, labels, genres, prem_dep, hypo_dep
 
     def train(self, train_mnli, train_snli, dev_mat, dev_mismat, dev_snli):
         self.sess = tf.Session()
@@ -162,7 +188,8 @@ class ModelClassifier:
             # Loop over all batches in epoch
             for i in range(total_batch):
                 # Assemble a minibatch of the next B examples
-                minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres = \
+                minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
+                    minibatch_prem_dep, minibatch_hypo_dep = \
                     self.get_minibatch(training_data, self.batch_size * i, self.batch_size * (i + 1))
 
                 # Run the optimizer to take a gradient step, and also fetch the value of the
@@ -171,6 +198,11 @@ class ModelClassifier:
                              self.model.hypothesis_x: minibatch_hypothesis_vectors,
                              self.model.y: minibatch_labels,
                              self.model.keep_rate_ph: self.keep_rate}
+
+                if self.model_type == 'dep_avg':
+                    feed_dict[self.model.prem_dep] = minibatch_prem_dep
+                    feed_dict[self.model.hypo_dep] = minibatch_hypo_dep
+
                 _, c = self.sess.run([self.optimizer, self.model.total_cost], feed_dict)
 
                 # Compute average loss
@@ -247,12 +279,16 @@ class ModelClassifier:
         cost = 0
         genres = []
         for i in range(total_batch):
-            minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres = \
+            minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
+                minibatch_prem_dep, minibatch_hypo_dep = \
                 self.get_minibatch(examples, self.batch_size * i, self.batch_size * (i + 1))
             feed_dict = {self.model.premise_x: minibatch_premise_vectors,
                          self.model.hypothesis_x: minibatch_hypothesis_vectors,
                          self.model.y: minibatch_labels,
                          self.model.keep_rate_ph: 1.0}
+            if self.model_type == 'dep_avg':
+                feed_dict[self.model.prem_dep] = minibatch_prem_dep
+                feed_dict[self.model.hypo_dep] = minibatch_hypo_dep
             genres += minibatch_genres
             logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
             logits = np.vstack([logits, logit])

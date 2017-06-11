@@ -13,7 +13,8 @@ import io
 import os
 
 parser = argparse.ArgumentParser()
-models = ['bilstm_tf', 'selfattentive']
+models = ['bilstm_tf', 'selfattentive', 'dep_avg']
+pooling_types = ['max', 'avg']
 
 
 def types(s):
@@ -52,13 +53,14 @@ parser.add_argument('--alpha', type=float, default=0.15, help='What percentage o
 
 parser.add_argument('--test', action='store_true', help='Call if you want to only test on the best checkpoint.')
 parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
-parser.add_argument('--pooling', type=str, default='avg')
+parser.add_argument('--pooling', type=str, choices=pooling_types, default='avg')
 parser.add_argument('--shared_encoder', action='store_true', help='Shared encoder')
-
 
 parser.add_argument('--s1_dim', type=int, default=150, help='s1 dim')
 parser.add_argument('--s2_dim', type=int, default=10, help='aka r')
 parser.add_argument('--penal_coef', type=float, default=0.3, help='penalization coefficient')
+
+parser.add_argument('--udpipe_path', type=str)
 
 args = parser.parse_args()
 
@@ -107,7 +109,8 @@ def load_parameters():
         's1_dim': args.s1_dim,
         's2_dim': args.s2_dim,
         'penal_coef': args.penal_coef,
-        'shared_encoder': args.shared_encoder
+        'shared_encoder': args.shared_encoder,
+        'udpipe_path': args.udpipe_path
     }
 
 
