@@ -30,25 +30,28 @@ FIRST_CLASS_POS = {'ADJ', 'ADV', 'NOUN', 'VERB'}
 
 def process_dep(data, seq_length, r):
     parsed_table = [row.split('\t') for row in data.split('\n') if len(row) > 0 and row[0] != u'#']
-    waiting = collections.deque([word[ID] for word in parsed_table if word[HEAD] == u'0'])
+    waiting = collections.deque([word[ID] for word in parsed_table
+                                 if word[HEAD] == u'0' and int(word[ID]) <= seq_length])
     ret = np.zeros((r, seq_length), 'float32')
     i = 0
     while i < r:
         if len(waiting) <= 0:
             break
         cur = waiting.popleft()
-        cur_cluster = [word[ID] for word in parsed_table if word[HEAD] == cur]
+        cur_cluster = []
+        for word in parsed_table:
+            if word[HEAD] == cur:
+                real_id = int(word[ID]) - 1
+                if real_id >= seq_length:
+                    continue
+                cur_cluster.append(word[ID])
+                ret[i][real_id] = 2. if word[UPOSTAG] in FIRST_CLASS_POS else 1.
         waiting.extend(cur_cluster)
-
-        cur_cluster.append(cur)
-        vl = len(cur_cluster)
-        if vl < 2:
+        if len(cur_cluster) < 1:
+            ret[i] = 0
             continue
-        vl = 1. / vl
-        for word_id in cur_cluster:
-            real_id = int(word_id) - 1
-            if real_id < seq_length:
-                ret[i][real_id] = vl
+        ret[i][int(cur)-1] = 3.
+        ret[i] = ret[i]/ret[i].sum()
         i += 1
     return ret
 
