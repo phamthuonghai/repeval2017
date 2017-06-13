@@ -1,9 +1,9 @@
 '''
 The hyperparameters for a model are defined here. Arguments like the type of model, model name, paths to data, logs etc.
 are also defined here.
-All paramters and arguments can be changed by calling flags in the command line.
+All parameters and arguments can be changed by calling flags in the command line.
 
-Required arguements are,
+Required arguments are,
 model_type: which model you wish to train with. Valid model types: cbow, bilstm, and esim.
 model_name: the name assigned to the model being trained, this will prefix the name of the logs and checkpoint files.
 '''
@@ -13,7 +13,7 @@ import io
 import os
 
 parser = argparse.ArgumentParser()
-models = ['bilstm_tf', 'selfattentive', 'dep_avg', 'bilstm_dep_avg']
+models = ['bilstm_tf', 'selfattentive', 'dep_avg', 'bilstm_dep_avg', '3x_bilstm_dep_avg']
 pooling_types = ['max', 'avg']
 
 
@@ -70,7 +70,7 @@ test_matched = '{}/multinli_0.9/multinli_0.9_test_matched_unlabeled.jsonl'.forma
 
 if os.path.isfile(test_matched):
     test_matched = '{}/multinli_0.9/multinli_0.9_test_matched_unlabeled.jsonl'.format(args.datapath)
-    test_mismatched = '{}/multinli_0.9/multinli_0.9_test_matched_unlabeled.jsonl'.format(args.datapath)
+    test_mismatched = '{}/multinli_0.9/multinli_0.9_test_mismatched_unlabeled.jsonl'.format(args.datapath)
     test_path = '{}/multinli_0.9/'.format(args.datapath)
 else:
     test_path = '{}/multinli_0.9/'.format(args.datapath)

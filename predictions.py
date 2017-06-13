@@ -5,7 +5,6 @@ Script to generate a CSV file of predictions on the test data.
 import tensorflow as tf
 import os
 import importlib
-import random
 from utils import logger
 import utils.parameters as params
 from utils.data_processing import *
@@ -27,15 +26,12 @@ MyModel = getattr(module, 'MyModel')
 logger.log("FIXED_PARAMETERS\n %s" % FIXED_PARAMETERS)
 
 logger.log("Loading data")
-training_snli = load_nli_data(FIXED_PARAMETERS["training_snli"], snli=True)
-dev_snli = load_nli_data(FIXED_PARAMETERS["dev_snli"], snli=True)
-test_snli = load_nli_data(FIXED_PARAMETERS["test_snli"], snli=True)
-
-training_mnli = load_nli_data(FIXED_PARAMETERS["training_mnli"])
-dev_matched = load_nli_data(FIXED_PARAMETERS["dev_matched"])
-dev_mismatched = load_nli_data(FIXED_PARAMETERS["dev_mismatched"])
-test_matched = load_nli_data(FIXED_PARAMETERS["test_matched"])
-test_mismatched = load_nli_data(FIXED_PARAMETERS["test_mismatched"])
+test_matched = load_nli_data(FIXED_PARAMETERS["test_matched"], udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                             seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                             cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.test_matched.cache')
+test_mismatched = load_nli_data(FIXED_PARAMETERS["test_mismatched"], udpipe_path=FIXED_PARAMETERS['udpipe_path'],
+                                seq_length=FIXED_PARAMETERS['seq_length'], r=FIXED_PARAMETERS['s2_dim'],
+                                cache_file=os.path.join(FIXED_PARAMETERS["log_path"], modname)+'.test_mismatched.cache')
 
 dictpath = os.path.join(FIXED_PARAMETERS["log_path"], modname) + ".p"
 
@@ -47,8 +43,7 @@ else:
     logger.log("Loading dictionary from %s" % dictpath)
     word_indices = pickle.load(open(dictpath, "rb"))
     logger.log("Padding and indexifying sentences")
-    sentences_to_padded_index_sequences(word_indices, [training_mnli, training_snli, dev_matched, dev_mismatched,
-                                                       dev_snli, test_snli, test_matched, test_mismatched])
+    sentences_to_padded_index_sequences(word_indices, [test_matched, test_mismatched])
 
 loaded_embeddings = load_embedding_rand(FIXED_PARAMETERS["embedding_data_path"], word_indices)
 
@@ -56,12 +51,14 @@ loaded_embeddings = load_embedding_rand(FIXED_PARAMETERS["embedding_data_path"],
 class ModelClassifier:
     def __init__(self):
         # Define hyperparameters
+        self.model_type = FIXED_PARAMETERS["model_type"]
         self.learning_rate = FIXED_PARAMETERS["learning_rate"]
         self.display_epoch_freq = 1
         self.display_step_freq = 50
         self.batch_size = FIXED_PARAMETERS["batch_size"]
         self.keep_rate = FIXED_PARAMETERS["keep_rate"]
         self.alpha = FIXED_PARAMETERS["alpha"]
+        self.udpipe_path = FIXED_PARAMETERS['udpipe_path']
         FIXED_PARAMETERS['embeddings'] = loaded_embeddings
 
         logger.log("Building model from %s.py" % model)
@@ -82,7 +79,15 @@ class ModelClassifier:
         premise_vectors = np.vstack([dataset[i]['sentence1_binary_parse_index_sequence'] for i in indices])
         hypothesis_vectors = np.vstack([dataset[i]['sentence2_binary_parse_index_sequence'] for i in indices])
         labels = [dataset[i]['label'] for i in indices]
-        return premise_vectors, hypothesis_vectors, labels
+
+        prem_dep = None
+        hypo_dep = None
+
+        if self.udpipe_path:
+            prem_dep = np.stack([dataset[i]['prem_dep'] for i in indices])
+            hypo_dep = np.stack([dataset[i]['hypo_dep'] for i in indices])
+
+        return premise_vectors, hypothesis_vectors, labels, prem_dep, hypo_dep
 
     def classify(self, examples):
         # This classifies a list of examples
@@ -93,12 +98,17 @@ class ModelClassifier:
         logger.log("Model restored from file: %s" % best_path)
 
         logits = np.empty(3)
-        minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels = \
+        minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, \
+            minibatch_prem_dep, minibatch_hypo_dep = \
             self.get_minibatch(examples, 0, len(examples))
         feed_dict = {self.model.premise_x: minibatch_premise_vectors,
                      self.model.hypothesis_x: minibatch_hypothesis_vectors,
+                     self.model.y: minibatch_labels,
                      self.model.keep_rate_ph: 1.0}
-        logit = self.sess.run(self.model.logits, feed_dict)
+        if 'dep_avg' in self.model_type:
+            feed_dict[self.model.prem_dep] = minibatch_prem_dep
+            feed_dict[self.model.hypo_dep] = minibatch_hypo_dep
+        logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
         logits = np.vstack([logits, logit])
 
         return np.argmax(logits[1:], axis=1)

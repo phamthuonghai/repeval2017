@@ -86,6 +86,7 @@ def load_nli_data(path, snli=False, udpipe_path=None, seq_length=50, r=10, cache
     is_snli = snli
     pr_r = r
     pr_seq_length = seq_length
+    pipeline = None
     print(path)
     if os.path.exists(cache_file):
         with open(cache_file, 'rb') as f:
