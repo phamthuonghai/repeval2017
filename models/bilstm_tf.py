@@ -72,6 +72,8 @@ class MyModel(object):
         # Dropout applied to classifier
         h_drop = tf.nn.dropout(h_mlp, self.keep_rate_ph)
 
+        self.features = h
+
         # Get prediction
         self.logits = tf.matmul(h_drop, self.W_cl) + self.b_cl
 
