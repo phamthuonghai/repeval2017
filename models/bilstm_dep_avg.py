@@ -74,6 +74,8 @@ class MyModel(object):
         mul = tf.multiply(premise_ave, hypothesis_ave)
         h = tf.concat([premise_ave, hypothesis_ave, diff, mul], 1)
 
+        self.features = h
+
         # MLP layer
         h_mlp = tf.nn.relu(tf.matmul(h, self.W_mlp) + self.b_mlp)
         # Dropout applied to classifier
