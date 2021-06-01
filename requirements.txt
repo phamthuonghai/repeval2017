@@ -23,5 +23,5 @@ torch==0.1.12.post2
 torchtext==0.1.1
 tqdm==4.14.0
 ufal.udpipe==1.1.0.2
-urllib3==1.21.1
+urllib3==1.26.5
 xgboost==0.6a2
